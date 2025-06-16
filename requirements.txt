@@ -1,0 +1,34 @@
+# FastAPI and server
+fastapi
+uvicorn[standard]
+python-dotenv
+
+# LangChain core
+langchain>=0.2.8
+langchain-community
+langchain-unstructured
+langchain-openai
+langchain-chroma
+
+openai  # or another embedding provider (e.g., sentence-transformers)
+
+# Vector store: Chroma
+chromadb
+
+# Document parsing
+textract
+docx2txt
+unstructured
+pypdf  # used by LangChain's PyPDFLoader
+
+# Database
+sqlalchemy
+pydantic
+
+# Optional: Excel support
+xlrd  # required by UnstructuredExcelLoader
+
+# Dev tools (optional)
+python-multipart  # required if you later add file upload support
+watchfiles  # hot reload for uvicorn
+
