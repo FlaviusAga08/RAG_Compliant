@@ -60,7 +60,8 @@ async def ask_question(request: QueryRequest):
     if not qa_chain:
         raise HTTPException(status_code=503, detail="QA chain not initialized")
 
-    result = qa_chain.run(request.query)
+    result = qa_chain.invoke(request.query)
+
     result_type = type(result)
 
     handler = result_dispatch.get(result_type)

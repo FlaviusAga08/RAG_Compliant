@@ -32,3 +32,4 @@ xlrd  # required by UnstructuredExcelLoader
 python-multipart  # required if you later add file upload support
 watchfiles  # hot reload for uvicorn
 
+dataclasses
