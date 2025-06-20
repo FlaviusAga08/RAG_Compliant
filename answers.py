@@ -8,6 +8,14 @@ from services.vectorstore import get_vectorstore
 from services.rag_service import build_qa_chain, get_qa_chain
 from langchain.schema import Document
 
+from sqlalchemy.future import select
+from sqlalchemy import desc
+from services.database import get_db
+from models import QueryHistory
+from fastapi import Depends, Query
+from sqlalchemy.ext.asyncio import AsyncSession
+
+
 load_dotenv()
 
 API_KEY = os.getenv("OPENAI_API_KEY")
@@ -32,18 +40,34 @@ class QueryResponse(BaseModel):
     answer: str
     sources: List[Dict[str, Any]]
 
-# === Dispatcher Handlers ===
+class QueryHistoryResponse(BaseModel):
+    id: int
+    query: str
+    result: str
+    sources: str
+
 
 def handle_dict_result(result: dict) -> QueryResponse:
     answer = result.get("result", "")
     source_docs = result.get("source_documents", [])
-    sources = [{"source": doc.metadata.get("source", "unknown")} for doc in source_docs if isinstance(doc, Document)]
+
+    # Deduplicate sources
+    seen_sources = set()
+    sources = []
+    for doc in source_docs:
+        if isinstance(doc, Document):
+            source = doc.metadata.get("source", "unknown")
+            if source not in seen_sources:
+                seen_sources.add(source)
+                sources.append({"source": source})
+
     return QueryResponse(answer=answer, sources=sources)
+
 
 def handle_str_result(result: str) -> QueryResponse:
     return QueryResponse(answer=result, sources=[])
 
-# === Result Dispatcher ===
+
 
 ResultHandler = Callable[[Union[dict, str]], QueryResponse]
 
@@ -60,7 +84,7 @@ async def ask_question(request: QueryRequest):
     if not qa_chain:
         raise HTTPException(status_code=503, detail="QA chain not initialized")
 
-    result = qa_chain.invoke(request.query)
+    result = await qa_chain.ainvoke(request.query) 
 
     result_type = type(result)
 
@@ -69,3 +93,13 @@ async def ask_question(request: QueryRequest):
         raise HTTPException(status_code=500, detail=f"Unsupported result type: {result_type}")
 
     return handler(result)
+
+@app.get("/history", response_model=List[QueryHistoryResponse])
+async def get_query_history(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(10, ge=1, le=100),
+    db: AsyncSession = Depends(get_db),
+):
+    stmt = select(QueryHistory).order_by(desc(QueryHistory.id)).offset(skip).limit(limit)
+    result = await db.execute(stmt)
+    return [QueryHistoryResponse(**row.__dict__) for row in result.scalars().all()]
